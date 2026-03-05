@@ -7,19 +7,17 @@ interface Message {
 }
 
 export async function generateResponse(
-  history: { role: "user" | "assistant"; content: string }[]
+  history: { role: "user" | "assistant"; content: string }[],
+  systemPrompt?: string
 ): Promise<string> {
   const messages: Message[] = [
-    { role: "system", content: config.systemPrompt },
+    { role: "system", content: systemPrompt ?? config.systemPrompt },
     ...history,
   ];
 
   const response = await axios.post(
     "https://openrouter.ai/api/v1/chat/completions",
-    {
-      model: config.openrouterModel,
-      messages,
-    },
+    { model: config.openrouterModel, messages },
     {
       headers: {
         Authorization: `Bearer ${config.openrouterApiKey}`,

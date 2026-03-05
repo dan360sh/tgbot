@@ -4,24 +4,21 @@ import * as qrcode from "qrcode-terminal";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { config } from "./config";
+import { loadStorage } from "./storage";
 import { setupHandlers } from "./handler";
 
 const SESSION_FILE = ".session";
 
 function prompt(question: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
+    rl.question(question, (answer) => { rl.close(); resolve(answer.trim()); });
   });
 }
 
 async function main() {
+  loadStorage();
+
   let sessionString = config.session;
   if (!sessionString && fs.existsSync(SESSION_FILE)) {
     sessionString = fs.readFileSync(SESSION_FILE, "utf-8").trim();
@@ -47,13 +44,10 @@ async function main() {
         qrCode: async (code) => {
           const url = `tg://login?token=${code.token.toString("base64url")}`;
           qrcode.generate(url, { small: true });
-          console.log("⏳ Жди сканирования... (обновляется каждые 30 сек)\n");
+          console.log("⏳ Жди сканирования...\n");
         },
         password: async () => prompt("🔒 Пароль 2FA: "),
-        onError: async (err) => {
-          console.error("❌ Ошибка:", err.message);
-          return false;
-        },
+        onError: async (err) => { console.error("❌ Ошибка:", err.message); return false; },
       }
     );
 
@@ -69,14 +63,9 @@ async function main() {
 
   setupHandlers(client, BigInt(me.id.toString()));
 
-  console.log("\n🤖 Автоответчик активен!");
-  console.log("   Управление — отправьте в Избранное:");
-  console.log("   /pause · /resume · /status · /help\n");
+  console.log("\n🤖 Автоответчик активен! Отправь /help в Избранное.\n");
 
   await new Promise<void>(() => {});
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+main().catch((err) => { console.error("Fatal error:", err); process.exit(1); });
