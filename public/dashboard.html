@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TG Bot — Дашборд</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; }
+    header { background: #fff; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    header h1 { font-size: 18px; color: #1a1a2e; }
+    .user-info { font-size: 14px; color: #666; display: flex; align-items: center; gap: 16px; }
+    .btn-logout { background: none; border: 1.5px solid #ddd; padding: 6px 14px; border-radius: 8px; cursor: pointer; color: #666; font-size: 13px; }
+    .btn-logout:hover { border-color: #e53935; color: #e53935; }
+    .container { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #fff; padding: 6px; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .tab { padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; color: #666; border: none; background: none; }
+    .tab.active { background: #2196F3; color: #fff; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    h2 { font-size: 16px; color: #1a1a2e; margin-bottom: 16px; }
+    .form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    input, textarea, select { padding: 10px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; width: 100%; font-family: inherit; }
+    input:focus, textarea:focus, select:focus { border-color: #2196F3; }
+    textarea { resize: vertical; min-height: 80px; }
+    .btn { background: #2196F3; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    .btn:hover { background: #1976D2; }
+    .btn-danger { background: #e53935; }
+    .btn-danger:hover { background: #c62828; }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    .btn-outline { background: none; border: 1.5px solid #2196F3; color: #2196F3; }
+    .btn-outline:hover { background: #e3f2fd; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    th { color: #888; font-weight: 500; font-size: 12px; text-transform: uppercase; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+    .badge-green { background: #e8f5e9; color: #2e7d32; }
+    .badge-red { background: #ffebee; color: #c62828; }
+    .badge-blue { background: #e3f2fd; color: #1565c0; }
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; inset: 0; background: #ccc; border-radius: 24px; cursor: pointer; transition: .2s; }
+    .slider:before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s; }
+    input:checked + .slider { background: #2196F3; }
+    input:checked + .slider:before { transform: translateX(20px); }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f5f5f5; }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { font-size: 14px; color: #333; }
+    .setting-desc { font-size: 12px; color: #999; margin-top: 2px; }
+    .empty { text-align: center; color: #aaa; padding: 32px; font-size: 14px; }
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    .alert-success { background: #e8f5e9; color: #2e7d32; }
+    .alert-error { background: #ffebee; color: #c62828; }
+    #status-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .status-item { font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🤖 TG Auto-Bot</h1>
+  <div class="user-info">
+    <span id="header-name">...</span>
+    <button class="btn-logout" onclick="logout()">Выйти</button>
+  </div>
+</header>
+
+<div class="container">
+  <div id="alert" style="display:none"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('settings')">⚙️ Настройки</button>
+    <button class="tab" onclick="switchTab('groups')">📂 Группы</button>
+    <button class="tab" onclick="switchTab('contacts')">👥 Контакты</button>
+    <button class="tab" onclick="switchTab('blacklist')">🚫 Чёрный список</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="panel active" id="panel-settings">
+    <div class="card">
+      <h2>Статус бота</h2>
+      <div id="status-bar"><span class="status-item">Загрузка...</span></div>
+    </div>
+    <div class="card">
+      <h2>OpenRouter API</h2>
+      <div class="form-row">
+        <input type="password" id="api-key" placeholder="sk-or-v1-..." />
+      </div>
+      <div class="form-row">
+        <input type="text" id="api-model" placeholder="openai/gpt-4o" />
+      </div>
+      <button class="btn" onclick="saveApiSettings()">Сохранить</button>
+    </div>
+    <div class="card">
+      <h2>Режим ответов</h2>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Режим</div>
+          <div class="setting-desc">all — отвечать всем, selected — только контактам из групп</div>
+        </div>
+        <select id="response-mode" style="width:auto;" onchange="saveSetting('responseMode', this.value)">
+          <option value="all">Всем</option>
+          <option value="selected">Только из групп</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Пауза</div>
+          <div class="setting-desc">Временно отключить автоответ</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="paused" onchange="saveSetting('paused', this.checked)"><span class="slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Базовый системный промт</div>
+          <div class="setting-desc">Для пользователей не в группах (режим "всем")</div>
+        </div>
+      </div>
+      <textarea id="default-prompt" rows="3" placeholder="Ты — я. Отвечай кратко..."></textarea>
+      <button class="btn" style="margin-top:10px" onclick="savePromptSettings()">Сохранить промт</button>
+    </div>
+    <div class="card">
+      <h2>Новенькие</h2>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Автоматически добавлять в группу</div>
+          <div class="setting-desc">Новые контакты попадают в выбранную группу</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="newcomers-enabled" onchange="saveNewcomers()"><span class="slider"></span></label>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <select id="newcomers-group">
+          <option value="">— Выбрать группу для новеньких —</option>
+        </select>
+        <button class="btn btn-outline" onclick="saveNewcomers()">Сохранить</button>
+      </div>
+      <button class="btn btn-outline" onclick="scanDialogs()" style="margin-top:8px">🔍 Пометить всех текущих как известных</button>
+    </div>
+  </div>
+
+  <!-- GROUPS -->
+  <div class="panel" id="panel-groups">
+    <div class="card">
+      <h2>Создать группу</h2>
+      <div class="form-row">
+        <input type="text" id="new-group-name" placeholder="Название группы" style="flex:1" />
+      </div>
+      <textarea id="new-group-prompt" placeholder="Системный промт для этой группы..." rows="3"></textarea>
+      <button class="btn" style="margin-top:10px" onclick="createGroup()">Создать</button>
+    </div>
+    <div class="card">
+      <h2>Группы</h2>
+      <div id="groups-list"><div class="empty">Нет групп</div></div>
+    </div>
+  </div>
+
+  <!-- CONTACTS -->
+  <div class="panel" id="panel-contacts">
+    <div class="card">
+      <h2>Добавить контакт в группу</h2>
+      <div class="form-row">
+        <input type="text" id="new-contact-id" placeholder="Telegram ID контакта" style="flex:1" />
+        <select id="new-contact-group" style="flex:1">
+          <option value="">— Выбрать группу —</option>
+        </select>
+        <button class="btn" onclick="addContact()">Добавить</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Контакты</h2>
+      <div id="contacts-list"><div class="empty">Нет контактов</div></div>
+    </div>
+  </div>
+
+  <!-- BLACKLIST -->
+  <div class="panel" id="panel-blacklist">
+    <div class="card">
+      <h2>Добавить в чёрный список</h2>
+      <div class="form-row">
+        <input type="text" id="new-block-id" placeholder="Telegram ID" style="flex:1" />
+        <button class="btn btn-danger" onclick="addToBlacklist()">Заблокировать</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Заблокированные</h2>
+      <div id="blacklist-list"><div class="empty">Список пуст</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) window.location.href = '/';
+
+const api = (path, opts = {}) => fetch('/api' + path, {
+  ...opts,
+  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  body: opts.body ? JSON.stringify(opts.body) : undefined,
+}).then(r => r.json());
+
+function showAlert(msg, type = 'success') {
+  const el = document.getElementById('alert');
+  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ── INIT ────────────────────────────────────────────────
+let groups = [];
+
+async function init() {
+  const me = await api('/auth/me');
+  document.getElementById('header-name').textContent = (me.firstName || '') + (me.username ? ` @${me.username}` : '');
+
+  // Settings
+  const settings = await api('/settings');
+  document.getElementById('response-mode').value = settings.responseMode;
+  document.getElementById('paused').checked = settings.paused;
+  document.getElementById('default-prompt').value = me.defaultSystemPrompt || '';
+  document.getElementById('newcomers-enabled').checked = settings.newcomersEnabled;
+  document.getElementById('api-model').value = me.openrouterModel || '';
+
+  // Status bar
+  const status = settings.paused
+    ? '<span class="badge badge-red">⏸ Пауза</span>'
+    : '<span class="badge badge-green">▶️ Активен</span>';
+  const mode = settings.responseMode === 'all' ? 'Отвечает всем' : 'Только выбранным';
+  document.getElementById('status-bar').innerHTML = `${status} <span class="status-item">${mode}</span>`;
+
+  // Groups
+  groups = await api('/groups');
+  renderGroups();
+  renderGroupSelects(settings.newcomersGroupId, me.defaultGroupId);
+
+  // Contacts & Blacklist
+  await loadContacts();
+  await loadBlacklist();
+}
+
+// ── SETTINGS ─────────────────────────────────────────────
+async function saveSetting(key, value) {
+  await api('/settings', { method: 'PATCH', body: { [key]: value } });
+  showAlert('Сохранено');
+  init();
+}
+
+async function saveApiSettings() {
+  const body = {};
+  const key = document.getElementById('api-key').value.trim();
+  const model = document.getElementById('api-model').value.trim();
+  if (key) body.openrouterApiKey = key;
+  if (model) body.openrouterModel = model;
+  await api('/settings', { method: 'PATCH', body });
+  showAlert('API настройки сохранены');
+}
+
+async function savePromptSettings() {
+  await api('/settings', { method: 'PATCH', body: { defaultSystemPrompt: document.getElementById('default-prompt').value } });
+  showAlert('Промт сохранён');
+}
+
+async function saveNewcomers() {
+  const enabled = document.getElementById('newcomers-enabled').checked;
+  const groupId = document.getElementById('newcomers-group').value || null;
+  await api('/settings', { method: 'PATCH', body: { newcomersEnabled: enabled, newcomersGroupId: groupId } });
+  showAlert('Сохранено');
+}
+
+async function scanDialogs() {
+  const res = await api('/settings/scan-dialogs', { method: 'POST' });
+  showAlert(`Отмечено ${res.scanned} пользователей как известных`);
+}
+
+// ── GROUPS ──────────────────────────────────────────────
+function renderGroups() {
+  const el = document.getElementById('groups-list');
+  if (!groups.length) { el.innerHTML = '<div class="empty">Нет групп</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Название</th><th>Системный промт</th><th></th></tr></thead><tbody>
+    ${groups.map(g => `<tr>
+      <td><strong>${g.name}</strong></td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#666">${g.systemPrompt}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteGroup(${g.id})">Удалить</button></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function renderGroupSelects(newcomersGroupId, defaultGroupId) {
+  const opts = '<option value="">— Не выбрано —</option>' + groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+  document.getElementById('newcomers-group').innerHTML = opts;
+  document.getElementById('new-contact-group').innerHTML = '<option value="">— Группа —</option>' + groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+  if (newcomersGroupId) document.getElementById('newcomers-group').value = newcomersGroupId;
+}
+
+async function createGroup() {
+  const name = document.getElementById('new-group-name').value.trim();
+  const systemPrompt = document.getElementById('new-group-prompt').value.trim();
+  if (!name || !systemPrompt) { showAlert('Заполните название и промт', 'error'); return; }
+  await api('/groups', { method: 'POST', body: { name, systemPrompt } });
+  document.getElementById('new-group-name').value = '';
+  document.getElementById('new-group-prompt').value = '';
+  groups = await api('/groups');
+  renderGroups();
+  renderGroupSelects();
+  showAlert(`Группа "${name}" создана`);
+}
+
+async function deleteGroup(id) {
+  if (!confirm('Удалить группу?')) return;
+  await api(`/groups/${id}`, { method: 'DELETE' });
+  groups = await api('/groups');
+  renderGroups();
+  renderGroupSelects();
+  showAlert('Группа удалена');
+}
+
+// ── CONTACTS ─────────────────────────────────────────────
+async function loadContacts() {
+  const contacts = await api('/contacts');
+  const el = document.getElementById('contacts-list');
+  if (!contacts.length) { el.innerHTML = '<div class="empty">Нет контактов</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Telegram ID</th><th>Группа</th><th></th></tr></thead><tbody>
+    ${contacts.map(c => `<tr>
+      <td>${c.telegramContactId}</td>
+      <td><span class="badge badge-blue">${c.group.name}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeContact('${c.telegramContactId}')">Убрать</button></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function addContact() {
+  const id = document.getElementById('new-contact-id').value.trim();
+  const groupId = document.getElementById('new-contact-group').value;
+  if (!id || !groupId) { showAlert('Заполните ID и группу', 'error'); return; }
+  await api('/contacts', { method: 'POST', body: { telegramContactId: id, groupId } });
+  document.getElementById('new-contact-id').value = '';
+  await loadContacts();
+  showAlert('Контакт добавлен');
+}
+
+async function removeContact(id) {
+  await api(`/contacts/${id}`, { method: 'DELETE' });
+  await loadContacts();
+  showAlert('Контакт удалён');
+}
+
+// ── BLACKLIST ─────────────────────────────────────────────
+async function loadBlacklist() {
+  const list = await api('/blacklist');
+  const el = document.getElementById('blacklist-list');
+  if (!list.length) { el.innerHTML = '<div class="empty">Список пуст</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Telegram ID</th><th></th></tr></thead><tbody>
+    ${list.map(e => `<tr>
+      <td>${e.telegramContactId}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="unblock('${e.telegramContactId}')">Разблокировать</button></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function addToBlacklist() {
+  const id = document.getElementById('new-block-id').value.trim();
+  if (!id) return;
+  await api('/blacklist', { method: 'POST', body: { telegramContactId: id } });
+  document.getElementById('new-block-id').value = '';
+  await loadBlacklist();
+  showAlert('Пользователь заблокирован');
+}
+
+async function unblock(id) {
+  await api(`/blacklist/${id}`, { method: 'DELETE' });
+  await loadBlacklist();
+  showAlert('Пользователь разблокирован');
+}
+
+// ── LOGOUT ────────────────────────────────────────────────
+async function logout() {
+  await api('/auth/logout', { method: 'POST' });
+  localStorage.removeItem('token');
+  window.location.href = '/';
+}
+
+init();
+</script>
+</body>
+</html>

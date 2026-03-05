@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  Int      @id @default(autoincrement())
+  telegramId          BigInt   @unique
+  username            String?
+  firstName           String?
+  sessionString       String?
+  token               String?  @unique
+  openrouterApiKey    String?
+  openrouterModel     String   @default("openai/gpt-5.2")
+  defaultSystemPrompt String   @default("Ты — я. Отвечай кратко и по-человечески.")
+  responseMode        String   @default("all")
+  paused              Boolean  @default(false)
+  newcomersEnabled    Boolean  @default(false)
+  defaultGroupId      Int?
+  newcomersGroupId    Int?
+  createdAt           DateTime @default(now())
+
+  groups        Group[]
+  contactGroups ContactGroup[]
+  blacklist     BlacklistEntry[]
+  knownUsers    KnownUser[]
+
+  defaultGroup   Group? @relation("UserDefaultGroup", fields: [defaultGroupId], references: [id])
+  newcomersGroup Group? @relation("UserNewcomersGroup", fields: [newcomersGroupId], references: [id])
+}
+
+model Group {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  name         String
+  systemPrompt String
+  createdAt    DateTime @default(now())
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactGroups    ContactGroup[]
+  defaultForUsers  User[]         @relation("UserDefaultGroup")
+  newcomersForUsers User[]        @relation("UserNewcomersGroup")
+
+  @@unique([userId, name])
+}
+
+model ContactGroup {
+  id                Int    @id @default(autoincrement())
+  userId            Int
+  telegramContactId BigInt
+  groupId           Int
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, telegramContactId])
+}
+
+model BlacklistEntry {
+  id                Int    @id @default(autoincrement())
+  userId            Int
+  telegramContactId BigInt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, telegramContactId])
+}
+
+model KnownUser {
+  id                Int    @id @default(autoincrement())
+  userId            Int
+  telegramContactId BigInt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, telegramContactId])
+}

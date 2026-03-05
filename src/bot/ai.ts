@@ -1,26 +1,22 @@
 import axios from "axios";
-import { config } from "./config";
-
-interface Message {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
 
 export async function generateResponse(
   history: { role: "user" | "assistant"; content: string }[],
-  systemPrompt?: string
+  systemPrompt: string,
+  apiKey: string,
+  model: string
 ): Promise<string> {
-  const messages: Message[] = [
-    { role: "system", content: systemPrompt ?? config.systemPrompt },
+  const messages = [
+    { role: "system", content: systemPrompt },
     ...history,
   ];
 
   const response = await axios.post(
     "https://openrouter.ai/api/v1/chat/completions",
-    { model: config.openrouterModel, messages },
+    { model, messages },
     {
       headers: {
-        Authorization: `Bearer ${config.openrouterApiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://github.com/tgbot",
         "X-Title": "TG Auto Responder",
