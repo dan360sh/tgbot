@@ -30,26 +30,25 @@ async function handleMessage(
   if (!msg.text?.trim()) return;
   const text = msg.text.trim();
 
-  // Control commands — наши исходящие сообщения в Избранное
-  if (msg.out) {
-    const peerId = msg.peerId;
-    if (peerId instanceof Api.PeerUser && BigInt(peerId.userId.toString()) === myId) {
-      await handleControlCommand(client, text, async (reply) => {
-        await client.sendMessage("me", { message: reply, parseMode: "markdown" });
-      });
-    }
+  const peerId = msg.peerId;
+
+  const isSavedMessages =
+    peerId instanceof Api.PeerUser && BigInt(peerId.userId.toString()) === myId;
+
+  if (isSavedMessages) {
+    await handleControlCommand(client, text, async (reply) => {
+      await client.sendMessage("me", { message: reply, parseMode: "markdown" });
+    });
     return;
   }
 
+  if (msg.out) return;
   if (storage.get().paused) return;
-
-  // Только DM и упоминания в группах
   if (!msg.isPrivate && !msg.mentioned) return;
 
   const senderId = msg.senderId?.toString();
   if (!senderId) return;
 
-  // Новенький?
   if (!storage.isKnownUser(senderId)) {
     storage.addKnownUser(senderId);
     const { newcomers, userGroups } = storage.get();
@@ -58,15 +57,14 @@ async function handleMessage(
     }
   }
 
-  // Проверяем нужно ли отвечать
   if (!storage.shouldRespond(senderId)) return;
 
-  // System prompt для этого пользователя
   const systemPrompt = storage.getSystemPromptForUser(senderId, config.systemPrompt);
+  const group = storage.get().userGroups[senderId] ?? storage.get().defaultGroup ?? "default";
+  console.log(`[${new Date().toLocaleTimeString()}] user=${senderId} group=${group} prompt="${systemPrompt.slice(0, 60)}..."`);
 
   const chatId = String(msg.chatId ?? msg.senderId);
 
-  // Индикатор печати
   try {
     await client.invoke(
       new Api.messages.SetTyping({ peer: msg.peerId!, action: new Api.SendMessageTypingAction() })
@@ -77,7 +75,7 @@ async function handleMessage(
   const reply = await generateResponse(state.getHistory(chatId), systemPrompt);
   state.addMessage(chatId, "assistant", reply);
 
-  await client.sendMessage(msg.peerId!, { message: reply });
+  await msg.respond({ message: reply });
 
   console.log(`[${new Date().toLocaleTimeString()}] → ${senderId}: ${reply.slice(0, 60)}...`);
 }
