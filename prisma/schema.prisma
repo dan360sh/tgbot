@@ -25,23 +25,27 @@ model User {
   tokens              Int      @default(3000)
   createdAt           DateTime @default(now())
 
-  groups        Group[]
-  contactGroups ContactGroup[]
-  blacklist     BlacklistEntry[]
-  knownUsers    KnownUser[]
+  groups          Group[]
+  contactGroups   ContactGroup[]
+  blacklist       BlacklistEntry[]
+  knownUsers      KnownUser[]
+  contactContexts ContactContext[]
 
   defaultGroup   Group? @relation("UserDefaultGroup", fields: [defaultGroupId], references: [id])
   newcomersGroup Group? @relation("UserNewcomersGroup", fields: [newcomersGroupId], references: [id])
 }
 
 model Group {
-  id           Int      @id @default(autoincrement())
-  userId       Int
-  name         String
-  systemPrompt String
-  aiModel      String   @default("")
-  isDefault    Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  name               String
+  systemPrompt       String
+  aiModel            String   @default("")
+  isDefault          Boolean  @default(false)
+  liveMode           Boolean  @default(false)
+  writeFirst         Boolean  @default(false)
+  writeFirstInterval Int      @default(60)
+  createdAt          DateTime @default(now())
 
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   contactGroups    ContactGroup[]
@@ -78,6 +82,24 @@ model KnownUser {
   id                Int    @id @default(autoincrement())
   userId            Int
   telegramContactId BigInt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, telegramContactId])
+}
+
+model ContactContext {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  telegramContactId BigInt
+  displayName       String    @default("")
+  info              String    @default("")
+  memory            String    @default("")
+  messages          Json      @default("[]")
+  historyLoaded     Boolean   @default(false)
+  lastWriteFirst    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

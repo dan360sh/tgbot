@@ -16,11 +16,19 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   const user = (req as any).user;
-  const { name, systemPrompt, aiModel } = req.body;
+  const { name, systemPrompt, aiModel, liveMode, writeFirst, writeFirstInterval } = req.body;
   if (!name || !systemPrompt) { res.status(400).json({ error: "name and systemPrompt required" }); return; }
   try {
     const group = await prisma.group.create({
-      data: { userId: user.id, name, systemPrompt, aiModel: aiModel ?? "" },
+      data: {
+        userId: user.id,
+        name,
+        systemPrompt,
+        aiModel: aiModel ?? "",
+        liveMode: liveMode ?? false,
+        writeFirst: writeFirst ?? false,
+        writeFirstInterval: writeFirstInterval ?? 60,
+      },
     });
     res.json(group);
   } catch {
@@ -34,13 +42,16 @@ router.put("/:id", async (req, res) => {
   const group = await prisma.group.findFirst({ where: { id, userId: user.id } });
   if (!group) { res.status(404).json({ error: "Not found" }); return; }
   if (group.isDefault) { res.status(403).json({ error: "Cannot edit default group" }); return; }
-  const { name, systemPrompt, aiModel } = req.body;
+  const { name, systemPrompt, aiModel, liveMode, writeFirst, writeFirstInterval } = req.body;
   const updated = await prisma.group.update({
     where: { id },
     data: {
       ...(name !== undefined && { name }),
       ...(systemPrompt !== undefined && { systemPrompt }),
       ...(aiModel !== undefined && { aiModel }),
+      ...(liveMode !== undefined && { liveMode }),
+      ...(writeFirst !== undefined && { writeFirst }),
+      ...(writeFirstInterval !== undefined && { writeFirstInterval }),
     },
   });
   res.json(updated);

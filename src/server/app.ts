@@ -6,6 +6,7 @@ import groupRoutes from "./routes/groups";
 import contactRoutes from "./routes/contacts";
 import settingsRoutes from "./routes/settings";
 import blacklistRoutes from "./routes/blacklist";
+import dialogsRoutes from "./routes/dialogs";
 import { AI_MODELS } from "../bot/models";
 
 export function createApp() {
@@ -20,6 +21,7 @@ export function createApp() {
   app.use("/api/contacts", contactRoutes);
   app.use("/api/settings", settingsRoutes);
   app.use("/api/blacklist", blacklistRoutes);
+  app.use("/api/dialogs", dialogsRoutes);
 
   // Public endpoint — list available AI models
   app.get("/api/models", (_req, res) => {

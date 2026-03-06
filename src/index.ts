@@ -1,6 +1,7 @@
 import { config } from "./config";
 import { createApp } from "./server/app";
 import { botManager } from "./bot/manager";
+import { startWriteFirstScheduler } from "./bot/writeFirst";
 import { prisma } from "./db";
 
 // GramJS periodically throws TIMEOUT in the update loop — safe to ignore
@@ -12,6 +13,9 @@ process.on("unhandledRejection", (reason: any) => {
 async function main() {
   // Start bots for all users with saved sessions
   await botManager.startAll();
+
+  // Start write-first scheduler
+  startWriteFirstScheduler();
 
   // Start HTTP server
   const app = createApp();

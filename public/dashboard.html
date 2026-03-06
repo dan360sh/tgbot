@@ -140,6 +140,9 @@
         <span class="bot-dot"></span>
         <span id="botToggleText">БОТ ВЫКЛЮЧЕН</span>
       </button>
+      <div style="text-align:center;margin-top:10px">
+        <a href="/dialogs.html" style="font-size:13px;color:var(--accent);text-decoration:none;font-weight:500;">Диалоги бота →</a>
+      </div>
     </div>
   </div>
 
@@ -202,6 +205,23 @@
 
       <label class="field-label">ИИ модель</label>
       <select id="modalModel"></select>
+
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="modalLiveMode" style="width:16px;height:16px;accent-color:var(--accent);">
+          <span style="font-size:14px;font-weight:500;">Живой режим</span>
+          <span style="font-size:12px;color:var(--text-muted);">— задержка перед ответом, имитация живого печатания</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="modalWriteFirst" onchange="toggleWriteFirstInterval()" style="width:16px;height:16px;accent-color:var(--accent);">
+          <span style="font-size:14px;font-weight:500;">Писать первым</span>
+          <span style="font-size:12px;color:var(--text-muted);">— бот сам инициирует диалог</span>
+        </label>
+        <div id="writeFirstIntervalRow" style="display:none;padding-left:26px;display:none;">
+          <label class="field-label" style="margin-top:0">Интервал между сообщениями (минуты)</label>
+          <input type="number" id="modalWriteFirstInterval" min="10" max="10080" value="60" style="width:140px;">
+        </div>
+      </div>
 
       <label class="field-label">Системный промт</label>
       <textarea id="modalPrompt" rows="4" placeholder="Как AI должен вести себя с людьми из этой группы…"></textarea>
@@ -377,6 +397,11 @@ function buildModelSelect(selectedId) {
   else if (models.length) sel.value = models[0].id;
 }
 
+function toggleWriteFirstInterval() {
+  var checked = document.getElementById('modalWriteFirst').checked;
+  document.getElementById('writeFirstIntervalRow').style.display = checked ? '' : 'none';
+}
+
 async function openAddModal() {
   currentGroupId = null;
   modalPeople = [];
@@ -385,6 +410,12 @@ async function openAddModal() {
   document.getElementById('modalName').disabled = false;
   document.getElementById('modalPrompt').disabled = false;
   document.getElementById('modalModel').disabled = false;
+  document.getElementById('modalLiveMode').checked = false;
+  document.getElementById('modalLiveMode').disabled = false;
+  document.getElementById('modalWriteFirst').checked = false;
+  document.getElementById('modalWriteFirst').disabled = false;
+  document.getElementById('modalWriteFirstInterval').value = 60;
+  document.getElementById('writeFirstIntervalRow').style.display = 'none';
   document.getElementById('modalPrompt').value = 'Ты — мой представитель в переписке. Отвечай естественно, кратко и по-человечески. Подстраивайся под тон собеседника. Не раскрывай, что ты AI.';
   buildModelSelect('');
   renderModalPeople();
@@ -401,6 +432,12 @@ async function openEditModal(id) {
   document.getElementById('modalName').disabled = !!g.isDefault;
   document.getElementById('modalPrompt').disabled = !!g.isDefault;
   document.getElementById('modalModel').disabled = !!g.isDefault;
+  document.getElementById('modalLiveMode').checked = !!g.liveMode;
+  document.getElementById('modalLiveMode').disabled = !!g.isDefault;
+  document.getElementById('modalWriteFirst').checked = !!g.writeFirst;
+  document.getElementById('modalWriteFirst').disabled = !!g.isDefault;
+  document.getElementById('modalWriteFirstInterval').value = g.writeFirstInterval || 60;
+  document.getElementById('writeFirstIntervalRow').style.display = g.writeFirst ? '' : 'none';
   buildModelSelect(g.aiModel || '');
   try {
     var contacts = await apiFetch('/api/contacts?groupId=' + id);
@@ -466,13 +503,16 @@ async function saveGroup() {
   var name = document.getElementById('modalName').value.trim();
   var systemPrompt = document.getElementById('modalPrompt').value.trim();
   var aiModel = document.getElementById('modalModel').value;
+  var liveMode = document.getElementById('modalLiveMode').checked;
+  var writeFirst = document.getElementById('modalWriteFirst').checked;
+  var writeFirstInterval = parseInt(document.getElementById('modalWriteFirstInterval').value) || 60;
   if (!name || !systemPrompt) { showToast('Заполните название и промт'); return; }
   var btn = document.getElementById('modalSaveBtn');
   btn.disabled = true;
   btn.textContent = 'Сохранение…';
   try {
     if (currentGroupId === null) {
-      var g = await apiFetch('/api/groups', { method: 'POST', body: { name: name, systemPrompt: systemPrompt, aiModel: aiModel } });
+      var g = await apiFetch('/api/groups', { method: 'POST', body: { name: name, systemPrompt: systemPrompt, aiModel: aiModel, liveMode: liveMode, writeFirst: writeFirst, writeFirstInterval: writeFirstInterval } });
       groups.push(g);
       for (var i = 0; i < modalPeople.length; i++) {
         await apiFetch('/api/contacts', { method: 'POST', body: { contactInput: modalPeople[i].telegramContactId, groupId: g.id } }).catch(function() {});
@@ -482,7 +522,7 @@ async function saveGroup() {
     } else {
       var gr = groups.find(function(x) { return x.id === currentGroupId; });
       if (gr && !gr.isDefault) {
-        var updated = await apiFetch('/api/groups/' + currentGroupId, { method: 'PUT', body: { name: name, systemPrompt: systemPrompt, aiModel: aiModel } });
+        var updated = await apiFetch('/api/groups/' + currentGroupId, { method: 'PUT', body: { name: name, systemPrompt: systemPrompt, aiModel: aiModel, liveMode: liveMode, writeFirst: writeFirst, writeFirstInterval: writeFirstInterval } });
         Object.assign(gr, updated);
         renderGroupSelects();
       }

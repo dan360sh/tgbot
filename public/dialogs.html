@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Диалоги — TG Bot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    .header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+    .header a { color: #2196F3; text-decoration: none; font-size: 14px; }
+    .header h1 { font-size: 18px; font-weight: 600; color: #1a1a2e; flex: 1; }
+
+    /* Tabs */
+    .tabs { display: flex; background: #fff; border-bottom: 1px solid #e8e8e8; padding: 0 24px; flex-shrink: 0; }
+    .tab { padding: 12px 20px; font-size: 14px; font-weight: 500; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.active { color: #2196F3; border-bottom-color: #2196F3; }
+
+    /* Tab panels */
+    .panel { display: none; flex: 1; overflow: hidden; }
+    .panel.active { display: flex; }
+
+    /* ===== DIALOGS TAB ===== */
+    .dialogs-layout { display: flex; width: 100%; height: 100%; overflow: hidden; }
+    .contacts-list { width: 300px; border-right: 1px solid #e8e8e8; background: #fff; overflow-y: auto; flex-shrink: 0; }
+    .contact-item { padding: 14px 16px; cursor: pointer; border-bottom: 1px solid #f5f5f5; }
+    .contact-item:hover { background: #f5f8ff; }
+    .contact-item.active { background: #e3f2fd; }
+    .contact-name { font-size: 14px; font-weight: 500; color: #1a1a2e; }
+    .contact-preview { font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .contact-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+    .contact-group-badge { font-size: 11px; background: #e3f2fd; color: #1976D2; padding: 2px 6px; border-radius: 4px; }
+    .contact-ts { font-size: 11px; color: #bbb; }
+
+    /* Dialog detail */
+    .dialog-detail { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #f8f9fa; }
+    .dialog-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 15px; }
+    .dialog-header { padding: 14px 20px; background: #fff; border-bottom: 1px solid #e8e8e8; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .dialog-header-name { font-size: 16px; font-weight: 600; flex: 1; }
+    .dialog-header-group { font-size: 12px; background: #e3f2fd; color: #1976D2; padding: 3px 8px; border-radius: 6px; }
+    .btn-send-first { background: #2196F3; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+    .btn-send-first:hover { background: #1976D2; }
+    .btn-send-first:disabled { background: #ccc; cursor: default; }
+
+    .dialog-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+
+    /* Info & Memory cards */
+    .info-card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 8px; border: 1px solid #e8e8e8; }
+    .info-card-title { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .info-textarea { width: 100%; border: 1.5px solid #e8e8e8; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px; outline: none; }
+    .info-textarea:focus { border-color: #2196F3; }
+    .btn-save-small { background: none; border: 1.5px solid #2196F3; color: #2196F3; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 6px; }
+    .btn-save-small:hover { background: #e3f2fd; }
+
+    /* Messages */
+    .messages-section { background: #fff; border-radius: 10px; border: 1px solid #e8e8e8; overflow: hidden; }
+    .messages-section-title { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 14px; border-bottom: 1px solid #f0f0f0; }
+    .message-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 14px; border-bottom: 1px solid #f5f5f5; }
+    .message-row:last-child { border-bottom: none; }
+    .message-role { font-size: 11px; font-weight: 600; min-width: 28px; padding-top: 2px; }
+    .message-role.user { color: #1976D2; }
+    .message-role.assistant { color: #388E3C; }
+    .message-content { flex: 1; font-size: 13px; color: #333; line-height: 1.5; word-break: break-word; }
+    .message-ts { font-size: 11px; color: #bbb; white-space: nowrap; padding-top: 2px; }
+    .btn-del-msg { background: none; border: none; color: #ccc; cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; flex-shrink: 0; }
+    .btn-del-msg:hover { color: #e53935; background: #ffeaea; }
+
+    /* ===== PEOPLE TAB ===== */
+    .people-layout { flex: 1; overflow-y: auto; padding: 20px; }
+    .people-table { width: 100%; background: #fff; border-radius: 12px; border: 1px solid #e8e8e8; overflow: hidden; }
+    .people-table th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e8e8e8; background: #fafafa; }
+    .people-table td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
+    .people-table tr:last-child td { border-bottom: none; }
+    .group-badge { font-size: 12px; background: #e3f2fd; color: #1976D2; padding: 3px 8px; border-radius: 6px; display: inline-block; }
+    .btn-add-group { background: none; border: 1.5px solid #2196F3; color: #2196F3; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .btn-add-group:hover { background: #e3f2fd; }
+    .btn-remove-group { background: none; border: none; color: #bbb; font-size: 12px; cursor: pointer; margin-left: 6px; }
+    .btn-remove-group:hover { color: #e53935; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #fff; border-radius: 14px; padding: 28px; width: 360px; max-width: 95vw; }
+    .modal h3 { font-size: 17px; margin-bottom: 18px; }
+    .group-option { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; cursor: pointer; }
+    .group-option:hover { background: #f5f8ff; }
+    .group-option input[type=radio] { accent-color: #2196F3; width: 16px; height: 16px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+    .btn-cancel { background: none; border: 1.5px solid #ddd; color: #555; padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .btn-confirm { background: #2196F3; color: #fff; border: none; padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .btn-confirm:hover { background: #1976D2; }
+
+    /* Loading */
+    .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: #aaa; font-size: 14px; }
+    .spinner { width: 20px; height: 20px; border: 2px solid #e0e0e0; border-top-color: #2196F3; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <a href="/dashboard.html">← Назад</a>
+  <h1>Диалоги бота</h1>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('dialogs')">Диалоги</div>
+  <div class="tab" onclick="switchTab('people')">Люди</div>
+</div>
+
+<!-- DIALOGS PANEL -->
+<div class="panel active" id="panel-dialogs">
+  <div class="dialogs-layout">
+    <div class="contacts-list" id="contacts-list">
+      <div class="loading"><div class="spinner"></div> Загрузка...</div>
+    </div>
+    <div class="dialog-detail" id="dialog-detail">
+      <div class="dialog-empty">Выберите диалог</div>
+    </div>
+  </div>
+</div>
+
+<!-- PEOPLE PANEL -->
+<div class="panel" id="panel-people">
+  <div class="people-layout">
+    <div id="people-content">
+      <div class="loading"><div class="spinner"></div> Загрузка...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Group select modal -->
+<div class="modal-overlay" id="groupModal">
+  <div class="modal">
+    <h3>Выбрать группу</h3>
+    <div id="group-options"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeGroupModal()">Отмена</button>
+      <button class="btn-confirm" onclick="confirmGroupAssign()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('tgbot_token');
+if (!TOKEN) window.location.href = '/';
+
+const api = (path, opts = {}) => fetch('/api' + path, {
+  headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  ...opts,
+}).then(r => r.json());
+
+// ===== STATE =====
+let allDialogs = [];
+let allGroups = [];
+let selectedContactId = null;
+let groupModalContactId = null;
+
+// ===== TABS =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['dialogs', 'people'][i] === tab));
+  document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', ['dialogs', 'people'][i] === tab));
+  if (tab === 'people') loadPeople();
+}
+
+// ===== DIALOGS =====
+async function loadDialogs() {
+  allDialogs = await api('/dialogs');
+  allGroups = await api('/groups');
+  renderContactsList();
+}
+
+function renderContactsList() {
+  const list = document.getElementById('contacts-list');
+  if (!allDialogs.length) {
+    list.innerHTML = '<div class="loading" style="color:#aaa">Нет диалогов</div>';
+    return;
+  }
+  list.innerHTML = allDialogs.map(d => `
+    <div class="contact-item ${d.telegramContactId === selectedContactId ? 'active' : ''}"
+         onclick="openDialog('${d.telegramContactId}')">
+      <div class="contact-name">${esc(d.displayName)}</div>
+      ${d.lastMessage ? `<div class="contact-preview">${d.lastMessageRole === 'assistant' ? 'Бот: ' : ''}${esc(d.lastMessage)}</div>` : ''}
+      <div class="contact-meta">
+        ${d.group ? `<span class="contact-group-badge">${esc(d.group.name)}</span>` : '<span></span>'}
+        ${d.lastTs ? `<span class="contact-ts">${fmtDate(d.lastTs)}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openDialog(contactId) {
+  selectedContactId = contactId;
+  renderContactsList();
+
+  const detail = document.getElementById('dialog-detail');
+  detail.innerHTML = '<div class="loading"><div class="spinner"></div> Загрузка...</div>';
+
+  const data = await api(`/dialogs/${contactId}`);
+  renderDialogDetail(data);
+}
+
+function renderDialogDetail(data) {
+  const detail = document.getElementById('dialog-detail');
+  const messages = data.messages || [];
+
+  detail.innerHTML = `
+    <div class="dialog-header">
+      <div class="dialog-header-name">${esc(data.displayName)}</div>
+      ${data.group ? `<span class="dialog-header-group">${esc(data.group.name)}</span>` : ''}
+      <button class="btn-send-first" onclick="sendFirst('${data.telegramContactId}')" id="btn-send-first">Написать</button>
+    </div>
+    <div class="dialog-body" id="dialog-body-${data.telegramContactId}">
+      <div class="info-card">
+        <div class="info-card-title">Информация о человеке</div>
+        <textarea class="info-textarea" id="info-text" rows="3" placeholder="Имя, профессия, интересы...">${esc(data.info)}</textarea>
+        <button class="btn-save-small" onclick="saveInfo('${data.telegramContactId}')">Сохранить</button>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title">Память (резюме прошлых разговоров)</div>
+        <textarea class="info-textarea" id="memory-text" rows="3" placeholder="Что обсуждали, о чём договорились...">${esc(data.memory)}</textarea>
+        <button class="btn-save-small" onclick="saveMemory('${data.telegramContactId}')">Сохранить</button>
+      </div>
+      <div class="messages-section">
+        <div class="messages-section-title">Контекст (${messages.length} сообщений)</div>
+        ${messages.map((m, i) => `
+          <div class="message-row" id="msg-row-${i}">
+            <span class="message-role ${m.role}">${m.role === 'user' ? 'Он' : 'Бот'}</span>
+            <span class="message-content">${esc(m.content)}</span>
+            <span class="message-ts">${fmtDate(m.ts)}</span>
+            <button class="btn-del-msg" onclick="deleteMessage('${data.telegramContactId}', ${i})" title="Удалить">✕</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+async function saveInfo(contactId) {
+  const info = document.getElementById('info-text').value;
+  await api(`/dialogs/${contactId}/info`, { method: 'PUT', body: JSON.stringify({ info }) });
+}
+
+async function saveMemory(contactId) {
+  const memory = document.getElementById('memory-text').value;
+  await api(`/dialogs/${contactId}/memory`, { method: 'PUT', body: JSON.stringify({ memory }) });
+}
+
+async function deleteMessage(contactId, index) {
+  const row = document.getElementById(`msg-row-${index}`);
+  if (row) row.style.opacity = '0.3';
+  await api(`/dialogs/${contactId}/messages/${index}`, { method: 'DELETE' });
+  // Reload dialog
+  openDialog(contactId);
+}
+
+async function sendFirst(contactId) {
+  const btn = document.getElementById('btn-send-first');
+  btn.disabled = true;
+  btn.textContent = 'Генерирую...';
+  try {
+    const result = await api(`/dialogs/${contactId}/send`, { method: 'POST' });
+    if (result.error) {
+      alert('Ошибка: ' + result.error);
+    } else {
+      btn.textContent = 'Отправлено!';
+      setTimeout(() => { btn.textContent = 'Написать'; btn.disabled = false; }, 2000);
+      openDialog(contactId);
+      loadDialogs();
+    }
+  } catch {
+    btn.textContent = 'Ошибка';
+    btn.disabled = false;
+  }
+}
+
+// ===== PEOPLE =====
+async function loadPeople() {
+  const container = document.getElementById('people-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> Загрузка...</div>';
+
+  const [people, groups] = await Promise.all([
+    api('/dialogs/people/list'),
+    api('/groups'),
+  ]);
+  allGroups = groups;
+  renderPeopleTable(people);
+}
+
+function renderPeopleTable(people) {
+  const container = document.getElementById('people-content');
+  if (!people.length) {
+    container.innerHTML = '<div class="loading" style="color:#aaa">Нет диалогов</div>';
+    return;
+  }
+  container.innerHTML = `
+    <table class="people-table">
+      <thead>
+        <tr>
+          <th>Имя</th>
+          <th>ID</th>
+          <th>Группа</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${people.map(p => `
+          <tr>
+            <td>${esc(p.displayName)}</td>
+            <td style="color:#aaa;font-size:12px">${p.telegramContactId}</td>
+            <td>
+              ${p.group
+                ? `<span class="group-badge">${esc(p.group.name)}</span>
+                   <button class="btn-remove-group" onclick="removeFromGroup('${p.telegramContactId}')" title="Убрать из группы">✕</button>`
+                : '<span style="color:#bbb;font-size:13px">Нет группы</span>'}
+            </td>
+            <td>
+              <button class="btn-add-group" onclick="openGroupModal('${p.telegramContactId}', ${p.group ? p.group.id : 'null'})">
+                ${p.group ? 'Изменить' : 'Добавить'}
+              </button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function removeFromGroup(contactId) {
+  await api(`/contacts/${contactId}`, { method: 'DELETE' });
+  loadPeople();
+}
+
+// ===== GROUP MODAL =====
+function openGroupModal(contactId, currentGroupId) {
+  groupModalContactId = contactId;
+  const opts = document.getElementById('group-options');
+  opts.innerHTML = allGroups.map(g => `
+    <label class="group-option">
+      <input type="radio" name="group-pick" value="${g.id}" ${g.id === currentGroupId ? 'checked' : ''}>
+      <span>${esc(g.name)}</span>
+    </label>
+  `).join('');
+  document.getElementById('groupModal').classList.add('open');
+}
+
+function closeGroupModal() {
+  document.getElementById('groupModal').classList.remove('open');
+  groupModalContactId = null;
+}
+
+async function confirmGroupAssign() {
+  const selected = document.querySelector('input[name="group-pick"]:checked');
+  if (!selected || !groupModalContactId) return;
+  await api('/contacts', {
+    method: 'POST',
+    body: JSON.stringify({ contactInput: groupModalContactId, groupId: parseInt(selected.value) }),
+  });
+  closeGroupModal();
+  loadPeople();
+}
+
+// ===== UTILS =====
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' ' +
+         d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Init
+loadDialogs();
+</script>
+</body>
+</html>
