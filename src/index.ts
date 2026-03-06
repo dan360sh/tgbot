@@ -3,6 +3,12 @@ import { createApp } from "./server/app";
 import { botManager } from "./bot/manager";
 import { prisma } from "./db";
 
+// GramJS periodically throws TIMEOUT in the update loop — safe to ignore
+process.on("unhandledRejection", (reason: any) => {
+  if (reason?.message === "TIMEOUT") return;
+  console.error("Unhandled rejection:", reason);
+});
+
 async function main() {
   // Start bots for all users with saved sessions
   await botManager.startAll();
