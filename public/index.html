@@ -68,7 +68,7 @@
         document.getElementById('status').textContent = 'Требуется пароль 2FA';
         document.getElementById('twofa').style.display = 'flex';
       } else if (data.status === 'success') {
-        localStorage.setItem('token', data.token);
+        localStorage.setItem('tgbot_token', data.token);
         document.getElementById('status').textContent = '✅ Успешно! Перенаправляем...';
         window.location.href = '/dashboard.html';
         return;
