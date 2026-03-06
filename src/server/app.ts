@@ -6,6 +6,7 @@ import groupRoutes from "./routes/groups";
 import contactRoutes from "./routes/contacts";
 import settingsRoutes from "./routes/settings";
 import blacklistRoutes from "./routes/blacklist";
+import { AI_MODELS } from "../bot/models";
 
 export function createApp() {
   const app = express();
@@ -19,6 +20,11 @@ export function createApp() {
   app.use("/api/contacts", contactRoutes);
   app.use("/api/settings", settingsRoutes);
   app.use("/api/blacklist", blacklistRoutes);
+
+  // Public endpoint — list available AI models
+  app.get("/api/models", (_req, res) => {
+    res.json(AI_MODELS.map((m) => ({ id: m.id, name: m.name, costPer1000Words: m.costPer1000Words })));
+  });
 
   return app;
 }

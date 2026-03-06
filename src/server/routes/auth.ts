@@ -74,11 +74,37 @@ router.post("/qr/start", async (req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
     const telegramId = BigInt(me.id.toString());
 
-    await prisma.user.upsert({
+    const dbUser = await prisma.user.upsert({
       where: { telegramId },
       create: { telegramId, username: me.username ?? null, firstName: me.firstName ?? null, sessionString, token },
       update: { sessionString, token, username: me.username ?? null, firstName: me.firstName ?? null },
     });
+
+    // Create default groups for new users
+    const existingGroups = await prisma.group.count({ where: { userId: dbUser.id } });
+    if (existingGroups === 0) {
+      const assistantGroup = await prisma.group.create({
+        data: {
+          userId: dbUser.id,
+          name: "Ассистент",
+          systemPrompt: "Ты — вежливый и полезный ассистент. Отвечай кратко, по делу и дружелюбно. Старайся помочь собеседнику решить его вопрос. Не раскрывай, что ты AI.",
+          isDefault: true,
+        },
+      });
+      await prisma.group.create({
+        data: {
+          userId: dbUser.id,
+          name: "Менеджер",
+          systemPrompt: "Ты — профессиональный менеджер по работе с клиентами. Общайся вежливо, официально и по делу. Уточняй детали запроса, предлагай решения. Не раскрывай, что ты AI.",
+          isDefault: true,
+        },
+      });
+      // Set Ассистент as default group for new users
+      await prisma.user.update({
+        where: { id: dbUser.id },
+        data: { defaultGroupId: assistantGroup.id },
+      });
+    }
 
     await botManager.startClient(telegramId, sessionString);
 

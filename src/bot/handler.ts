@@ -3,6 +3,7 @@ import { NewMessage, NewMessageEvent } from "telegram/events";
 import { Api } from "telegram";
 import { prisma } from "../db";
 import { generateResponse } from "./ai";
+import { getModel } from "./models";
 
 // In-memory chat history: `${userId}-${contactId}` -> messages
 const histories = new Map<string, { role: "user" | "assistant"; content: string }[]>();
@@ -57,7 +58,8 @@ async function handleMessage(
   // Load user settings from DB
   const user = await prisma.user.findUnique({ where: { id: dbUserId } });
   if (!user || user.paused) return;
-  if (!user.openrouterApiKey) return; // no API key configured
+  if (!user.openrouterApiKey) return;
+  if (user.tokens <= 0) return; // no tokens left
 
   // Blacklist check
   const blocked = await prisma.blacklistEntry.findUnique({
@@ -80,20 +82,24 @@ async function handleMessage(
     }
   }
 
-  // Determine system prompt
+  // Determine group and system prompt
   const contactGroup = await prisma.contactGroup.findUnique({
     where: { userId_telegramContactId: { userId: dbUserId, telegramContactId: BigInt(senderId) } },
     include: { group: true },
   });
 
   let systemPrompt: string | null = null;
+  let aiModelId: string = user.openrouterModel;
+
   if (contactGroup) {
     systemPrompt = contactGroup.group.systemPrompt;
+    if (contactGroup.group.aiModel) aiModelId = contactGroup.group.aiModel;
   } else if (user.responseMode === "selected") {
     return; // don't respond to users not in any group
   } else if (user.defaultGroupId) {
     const defGroup = await prisma.group.findUnique({ where: { id: user.defaultGroupId } });
     systemPrompt = defGroup?.systemPrompt ?? user.defaultSystemPrompt;
+    if (defGroup?.aiModel) aiModelId = defGroup.aiModel;
   } else {
     systemPrompt = user.defaultSystemPrompt;
   }
@@ -115,11 +121,22 @@ async function handleMessage(
     getHistory(histKey),
     systemPrompt,
     user.openrouterApiKey,
-    user.openrouterModel
+    aiModelId
   );
 
   addToHistory(histKey, "assistant", reply);
   await msg.respond({ message: reply });
 
-  console.log(`[Bot ${dbUserId}] → ${senderId}: ${reply.slice(0, 60)}...`);
+  // Deduct tokens based on words in reply
+  const wordCount = reply.split(/\s+/).filter(Boolean).length;
+  const model = getModel(aiModelId);
+  const tokensToDeduct = Math.ceil((wordCount / 1000) * model.costPer1000Words);
+  if (tokensToDeduct > 0) {
+    await prisma.user.update({
+      where: { id: dbUserId },
+      data: { tokens: { decrement: tokensToDeduct } },
+    }).catch(() => {});
+  }
+
+  console.log(`[Bot ${dbUserId}] → ${senderId}: ${reply.slice(0, 60)}... (-${tokensToDeduct} tokens)`);
 }

@@ -17,6 +17,7 @@ router.get("/", async (req, res) => {
     defaultSystemPrompt: user.defaultSystemPrompt,
     openrouterApiKey: user.openrouterApiKey ? "***" : null,
     openrouterModel: user.openrouterModel,
+    tokens: user.tokens,
   });
 });
 

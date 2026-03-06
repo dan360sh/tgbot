@@ -7,16 +7,21 @@ router.use(authMiddleware);
 
 router.get("/", async (req, res) => {
   const user = (req as any).user;
-  const groups = await prisma.group.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } });
+  const groups = await prisma.group.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "asc" },
+  });
   res.json(groups);
 });
 
 router.post("/", async (req, res) => {
   const user = (req as any).user;
-  const { name, systemPrompt } = req.body;
+  const { name, systemPrompt, aiModel } = req.body;
   if (!name || !systemPrompt) { res.status(400).json({ error: "name and systemPrompt required" }); return; }
   try {
-    const group = await prisma.group.create({ data: { userId: user.id, name, systemPrompt } });
+    const group = await prisma.group.create({
+      data: { userId: user.id, name, systemPrompt, aiModel: aiModel ?? "" },
+    });
     res.json(group);
   } catch {
     res.status(409).json({ error: "Group with this name already exists" });
@@ -26,10 +31,18 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const user = (req as any).user;
   const id = parseInt(req.params.id);
-  const { name, systemPrompt } = req.body;
   const group = await prisma.group.findFirst({ where: { id, userId: user.id } });
   if (!group) { res.status(404).json({ error: "Not found" }); return; }
-  const updated = await prisma.group.update({ where: { id }, data: { name, systemPrompt } });
+  if (group.isDefault) { res.status(403).json({ error: "Cannot edit default group" }); return; }
+  const { name, systemPrompt, aiModel } = req.body;
+  const updated = await prisma.group.update({
+    where: { id },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(systemPrompt !== undefined && { systemPrompt }),
+      ...(aiModel !== undefined && { aiModel }),
+    },
+  });
   res.json(updated);
 });
 
@@ -38,8 +51,8 @@ router.delete("/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   const group = await prisma.group.findFirst({ where: { id, userId: user.id } });
   if (!group) { res.status(404).json({ error: "Not found" }); return; }
+  if (group.isDefault) { res.status(403).json({ error: "Cannot delete default group" }); return; }
   await prisma.group.delete({ where: { id } });
-  // Clear if was default/newcomers
   await prisma.user.update({
     where: { id: user.id },
     data: {
