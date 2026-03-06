@@ -76,7 +76,7 @@ router.post("/qr/start", async (req, res) => {
 
     const dbUser = await prisma.user.upsert({
       where: { telegramId },
-      create: { telegramId, username: me.username ?? null, firstName: me.firstName ?? null, sessionString, token },
+      create: { telegramId, username: me.username ?? null, firstName: me.firstName ?? null, sessionString, token, paused: true },
       update: { sessionString, token, username: me.username ?? null, firstName: me.firstName ?? null },
     });
 

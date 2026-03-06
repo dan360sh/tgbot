@@ -26,6 +26,8 @@
     .btn-buy { background: var(--accent); color: #fff; border: none; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
     .btn-buy:hover { background: var(--accent-dark); }
     .header-user { font-size: 13px; color: var(--text-muted); }
+    .btn-logout { background: none; border: 1px solid var(--border); border-radius: 20px; padding: 5px 14px; font-size: 13px; color: var(--text-muted); cursor: pointer; transition: background .12s, color .12s; }
+    .btn-logout:hover { background: var(--red-light); color: var(--red); border-color: var(--red); }
 
     /* Layout */
     .main { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; display: flex; flex-direction: column; gap: 16px; }
@@ -125,6 +127,7 @@
     </div>
     <button class="btn-buy" onclick="buyTokens()">Купить</button>
     <span class="header-user" id="headerUser"></span>
+    <button class="btn-logout" onclick="logout()">Выйти</button>
   </div>
 </header>
 
@@ -498,6 +501,12 @@ async function saveGroup() {
 }
 
 function buyTokens() { showToast('Скоро будет доступно'); }
+
+async function logout() {
+  await apiFetch('/api/auth/logout', { method: 'POST' }).catch(function() {});
+  localStorage.removeItem('tgbot_token');
+  window.location.href = '/';
+}
 
 function showToast(msg) {
   var el = document.getElementById('toast');
