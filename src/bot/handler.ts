@@ -58,7 +58,6 @@ async function handleMessage(
   // Load user settings from DB
   const user = await prisma.user.findUnique({ where: { id: dbUserId } });
   if (!user || user.paused) return;
-  if (!user.openrouterApiKey) return;
   if (user.tokens <= 0) return; // no tokens left
 
   // Blacklist check
@@ -117,11 +116,12 @@ async function handleMessage(
   const histKey = `${dbUserId}-${senderId}`;
   addToHistory(histKey, "user", text);
 
+  const model = getModel(aiModelId);
   const reply = await generateResponse(
     getHistory(histKey),
     systemPrompt,
-    user.openrouterApiKey,
-    aiModelId
+    model.apiKey,
+    model.id
   );
 
   addToHistory(histKey, "assistant", reply);
@@ -129,7 +129,6 @@ async function handleMessage(
 
   // Deduct tokens based on words in reply
   const wordCount = reply.split(/\s+/).filter(Boolean).length;
-  const model = getModel(aiModelId);
   const tokensToDeduct = Math.ceil((wordCount / 1000) * model.costPer1000Words);
   if (tokensToDeduct > 0) {
     await prisma.user.update({
