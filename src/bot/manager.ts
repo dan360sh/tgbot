@@ -6,7 +6,6 @@ import { setupHandler } from "./handler";
 
 class BotManager {
   private clients = new Map<number, TelegramClient>(); // dbUserId -> client
-  private reconnectTimers = new Map<number, NodeJS.Timeout>();
 
   async startAll() {
     const users = await prisma.user.findMany({
@@ -52,34 +51,9 @@ class BotManager {
     setupHandler(client, telegramId, dbUserId);
     this.clients.set(dbUserId, client);
     console.log(`✅ Bot started for user ${dbUserId}`);
-
-    // Reconnect on disconnect
-    client.addEventHandler(() => {}, { build: () => ({}) } as any);
-    (client as any).on?.("disconnected", () => {
-      console.warn(`⚠️ Bot ${dbUserId} disconnected, reconnecting in 5s...`);
-      this.scheduleReconnect(telegramId, sessionString, dbUserId!);
-    });
-  }
-
-  private scheduleReconnect(telegramId: bigint, sessionString: string, dbUserId: number) {
-    // Clear existing timer if any
-    const existing = this.reconnectTimers.get(dbUserId);
-    if (existing) clearTimeout(existing);
-
-    const timer = setTimeout(async () => {
-      this.reconnectTimers.delete(dbUserId);
-      console.log(`🔄 Reconnecting bot for user ${dbUserId}...`);
-      await this.startClient(telegramId, sessionString, dbUserId).catch((err) =>
-        console.error(`Reconnect failed for user ${dbUserId}:`, err.message)
-      );
-    }, 5000);
-
-    this.reconnectTimers.set(dbUserId, timer);
   }
 
   async stopClient(dbUserId: number) {
-    const timer = this.reconnectTimers.get(dbUserId);
-    if (timer) { clearTimeout(timer); this.reconnectTimers.delete(dbUserId); }
     const existing = this.clients.get(dbUserId);
     if (existing) {
       await existing.disconnect().catch(() => {});
