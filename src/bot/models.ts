@@ -16,29 +16,17 @@ export interface AIModel {
 // ======================================================
 export const AI_MODELS: AIModel[] = [
   {
-    id: "openai/gpt-4o-mini",
-    name: "GPT-4o Mini",
-    apiKey: "sk-or-v1-ВАШ_КЛЮЧ_ЗДЕСЬ",
+    id: "qwen/qwen3.5-27b",
+    name: "qwen",
+    apiKey: "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",
     costPer1000Words: 10,
   },
   {
-    id: "openai/gpt-4o",
-    name: "GPT-4o",
-    apiKey: "sk-or-v1-ВАШ_КЛЮЧ_ЗДЕСЬ",
+    id: "anthropic/claude-sonnet-4.6",
+    name: "Claude",
+    apiKey: "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",
     costPer1000Words: 30,
-  },
-  {
-    id: "anthropic/claude-3.5-haiku",
-    name: "Claude 3.5 Haiku",
-    apiKey: "sk-or-v1-ВАШ_КЛЮЧ_ЗДЕСЬ",
-    costPer1000Words: 15,
-  },
-  {
-    id: "anthropic/claude-3.5-sonnet",
-    name: "Claude 3.5 Sonnet",
-    apiKey: "sk-or-v1-ВАШ_КЛЮЧ_ЗДЕСЬ",
-    costPer1000Words: 40,
-  },
+  }
   // Добавьте свои модели выше этой строки
 ];
 

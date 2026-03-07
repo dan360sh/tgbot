@@ -44,19 +44,29 @@
     .btn-send-first:hover { background: #1976D2; }
     .btn-send-first:disabled { background: #ccc; cursor: default; }
 
-    .dialog-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .dialog-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Collapsible meta panel (info + memory) */
+    .dialog-meta { flex-shrink: 0; border-bottom: 1px solid #e8e8e8; background: #fff; }
+    .dialog-meta-toggle { display: flex; align-items: center; gap: 8px; padding: 8px 16px; cursor: pointer; user-select: none; font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+    .dialog-meta-toggle:hover { background: #f5f8ff; }
+    .dialog-meta-toggle .arrow { transition: transform .2s; font-size: 10px; }
+    .dialog-meta-toggle.open .arrow { transform: rotate(90deg); }
+    .dialog-meta-content { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .dialog-meta-content.collapsed { display: none; }
 
     /* Info & Memory cards */
-    .info-card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 8px; border: 1px solid #e8e8e8; }
-    .info-card-title { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-    .info-textarea { width: 100%; border: 1.5px solid #e8e8e8; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px; outline: none; }
+    .info-card { background: #f8f9fa; border-radius: 8px; padding: 10px 12px; border: 1px solid #e8e8e8; }
+    .info-card-title { font-size: 11px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .info-textarea { width: 100%; border: 1.5px solid #e8e8e8; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 55px; outline: none; background: #fff; }
     .info-textarea:focus { border-color: #2196F3; }
-    .btn-save-small { background: none; border: 1.5px solid #2196F3; color: #2196F3; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 6px; }
+    .btn-save-small { background: none; border: 1.5px solid #2196F3; color: #2196F3; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 5px; }
     .btn-save-small:hover { background: #e3f2fd; }
 
     /* Messages */
-    .messages-section { background: #fff; border-radius: 10px; border: 1px solid #e8e8e8; overflow: hidden; }
-    .messages-section-title { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 14px; border-bottom: 1px solid #f0f0f0; }
+    .dialog-messages { flex: 1; overflow-y: auto; }
+    .messages-section { background: #fff; }
+    .messages-section-title { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; border-bottom: 1px solid #f0f0f0; position: sticky; top: 0; background: #fff; z-index: 1; }
     .message-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 14px; border-bottom: 1px solid #f5f5f5; }
     .message-row:last-child { border-bottom: none; }
     .message-role { font-size: 11px; font-weight: 600; min-width: 28px; padding-top: 2px; }
@@ -125,6 +135,11 @@
 <!-- PEOPLE PANEL -->
 <div class="panel" id="panel-people">
   <div class="people-layout">
+    <div style="margin-bottom:12px">
+      <input type="text" id="people-search" placeholder="Поиск по имени или username..."
+        oninput="filterPeople(this.value)"
+        style="width:100%;padding:9px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;">
+    </div>
     <div id="people-content">
       <div class="loading"><div class="spinner"></div> Загрузка...</div>
     </div>
@@ -155,8 +170,14 @@ const api = (path, opts = {}) => fetch('/api' + path, {
 // ===== STATE =====
 let allDialogs = [];
 let allGroups = [];
+let allPeople = [];
 let selectedContactId = null;
 let groupModalContactId = null;
+
+function tgLink(id, username) {
+  if (username) return `https://t.me/${username}`;
+  return `tg://user?id=${id}`;
+}
 
 // ===== TABS =====
 function switchTab(tab) {
@@ -181,7 +202,11 @@ function renderContactsList() {
   list.innerHTML = allDialogs.map(d => `
     <div class="contact-item ${d.telegramContactId === selectedContactId ? 'active' : ''}"
          onclick="openDialog('${d.telegramContactId}')">
-      <div class="contact-name">${esc(d.displayName)}</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="contact-name">${esc(d.displayName)}</span>
+        <a href="${tgLink(d.telegramContactId, d.username)}" target="_blank" onclick="event.stopPropagation()"
+           style="font-size:11px;color:#2196F3;text-decoration:none;flex-shrink:0;" title="Открыть в Telegram">↗</a>
+      </div>
       ${d.lastMessage ? `<div class="contact-preview">${d.lastMessageRole === 'assistant' ? 'Бот: ' : ''}${esc(d.lastMessage)}</div>` : ''}
       <div class="contact-meta">
         ${d.group ? `<span class="contact-group-badge">${esc(d.group.name)}</span>` : '<span></span>'}
@@ -200,42 +225,70 @@ async function openDialog(contactId) {
 
   const data = await api(`/dialogs/${contactId}`);
   renderDialogDetail(data);
+
+  // Scroll to bottom of messages so newest are visible
+  setTimeout(() => {
+    const msgs = document.getElementById(`dialog-messages-${contactId}`);
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  }, 50);
 }
 
 function renderDialogDetail(data) {
   const detail = document.getElementById('dialog-detail');
   const messages = data.messages || [];
+  const hasInfo = !!(data.info || data.memory);
 
   detail.innerHTML = `
     <div class="dialog-header">
-      <div class="dialog-header-name">${esc(data.displayName)}</div>
+      <div class="dialog-header-name">
+        ${esc(data.displayName)}
+        <a href="${tgLink(data.telegramContactId, data.username)}" target="_blank"
+           style="font-size:13px;color:#2196F3;text-decoration:none;margin-left:6px;" title="Открыть в Telegram">↗</a>
+      </div>
       ${data.group ? `<span class="dialog-header-group">${esc(data.group.name)}</span>` : ''}
       <button class="btn-send-first" onclick="sendFirst('${data.telegramContactId}')" id="btn-send-first">Написать</button>
     </div>
     <div class="dialog-body" id="dialog-body-${data.telegramContactId}">
-      <div class="info-card">
-        <div class="info-card-title">Информация о человеке</div>
-        <textarea class="info-textarea" id="info-text" rows="3" placeholder="Имя, профессия, интересы...">${esc(data.info)}</textarea>
-        <button class="btn-save-small" onclick="saveInfo('${data.telegramContactId}')">Сохранить</button>
-      </div>
-      <div class="info-card">
-        <div class="info-card-title">Память (резюме прошлых разговоров)</div>
-        <textarea class="info-textarea" id="memory-text" rows="3" placeholder="Что обсуждали, о чём договорились...">${esc(data.memory)}</textarea>
-        <button class="btn-save-small" onclick="saveMemory('${data.telegramContactId}')">Сохранить</button>
-      </div>
-      <div class="messages-section">
-        <div class="messages-section-title">Контекст (${messages.length} сообщений)</div>
-        ${messages.map((m, i) => `
-          <div class="message-row" id="msg-row-${i}">
-            <span class="message-role ${m.role}">${m.role === 'user' ? 'Он' : 'Бот'}</span>
-            <span class="message-content">${esc(m.content)}</span>
-            <span class="message-ts">${fmtDate(m.ts)}</span>
-            <button class="btn-del-msg" onclick="deleteMessage('${data.telegramContactId}', ${i})" title="Удалить">✕</button>
+      <div class="dialog-meta">
+        <div class="dialog-meta-toggle ${hasInfo ? 'open' : ''}" onclick="toggleMeta(this)">
+          <span class="arrow">▶</span>
+          <span>Информация и память</span>
+          ${data.info || data.memory ? '<span style="color:#2196F3;font-size:11px;margin-left:4px;">●</span>' : ''}
+        </div>
+        <div class="dialog-meta-content ${hasInfo ? '' : 'collapsed'}">
+          <div class="info-card">
+            <div class="info-card-title">Информация о человеке</div>
+            <textarea class="info-textarea" id="info-text" rows="3" placeholder="Имя, профессия, интересы...">${esc(data.info)}</textarea>
+            <button class="btn-save-small" onclick="saveInfo('${data.telegramContactId}')">Сохранить</button>
           </div>
-        `).join('')}
+          <div class="info-card">
+            <div class="info-card-title">Память (резюме прошлых разговоров)</div>
+            <textarea class="info-textarea" id="memory-text" rows="3" placeholder="Что обсуждали, о чём договорились...">${esc(data.memory)}</textarea>
+            <button class="btn-save-small" onclick="saveMemory('${data.telegramContactId}')">Сохранить</button>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-messages" id="dialog-messages-${data.telegramContactId}">
+        <div class="messages-section">
+          <div class="messages-section-title">Контекст (${messages.length} сообщений)</div>
+          ${messages.map((m, i) => `
+            <div class="message-row" id="msg-row-${i}">
+              <span class="message-role ${m.role}">${m.role === 'user' ? 'Он' : 'Бот'}</span>
+              <span class="message-content">${esc(m.content)}</span>
+              <span class="message-ts">${fmtDate(m.ts)}</span>
+              <button class="btn-del-msg" onclick="deleteMessage('${data.telegramContactId}', ${i})" title="Удалить">✕</button>
+            </div>
+          `).join('')}
+        </div>
       </div>
     </div>
   `;
+}
+
+function toggleMeta(toggle) {
+  toggle.classList.toggle('open');
+  const content = toggle.nextElementSibling;
+  content.classList.toggle('collapsed');
 }
 
 async function saveInfo(contactId) {
@@ -286,13 +339,24 @@ async function loadPeople() {
     api('/groups'),
   ]);
   allGroups = groups;
-  renderPeopleTable(people);
+  allPeople = people;
+  const search = document.getElementById('people-search');
+  renderPeopleTable(search?.value ? people.filter(p => matchesPerson(p, search.value)) : people);
+}
+
+function matchesPerson(p, q) {
+  q = q.toLowerCase();
+  return p.displayName.toLowerCase().includes(q) || (p.username && p.username.toLowerCase().includes(q));
+}
+
+function filterPeople(q) {
+  renderPeopleTable(q ? allPeople.filter(p => matchesPerson(p, q)) : allPeople);
 }
 
 function renderPeopleTable(people) {
   const container = document.getElementById('people-content');
   if (!people.length) {
-    container.innerHTML = '<div class="loading" style="color:#aaa">Нет диалогов</div>';
+    container.innerHTML = '<div class="loading" style="color:#aaa">Ничего не найдено</div>';
     return;
   }
   container.innerHTML = `
@@ -300,7 +364,6 @@ function renderPeopleTable(people) {
       <thead>
         <tr>
           <th>Имя</th>
-          <th>ID</th>
           <th>Группа</th>
           <th></th>
         </tr>
@@ -308,8 +371,12 @@ function renderPeopleTable(people) {
       <tbody>
         ${people.map(p => `
           <tr>
-            <td>${esc(p.displayName)}</td>
-            <td style="color:#aaa;font-size:12px">${p.telegramContactId}</td>
+            <td>
+              <a href="${tgLink(p.telegramContactId, p.username)}" target="_blank"
+                 style="color:#1a1a2e;text-decoration:none;font-weight:500;"
+                 title="Открыть в Telegram">${esc(p.displayName)}</a>
+              ${p.username ? `<span style="color:#aaa;font-size:12px;margin-left:4px;">@${esc(p.username)}</span>` : ''}
+            </td>
             <td>
               ${p.group
                 ? `<span class="group-badge">${esc(p.group.name)}</span>
@@ -354,12 +421,17 @@ function closeGroupModal() {
 async function confirmGroupAssign() {
   const selected = document.querySelector('input[name="group-pick"]:checked');
   if (!selected || !groupModalContactId) return;
+  const contactId = groupModalContactId;
   await api('/contacts', {
     method: 'POST',
-    body: JSON.stringify({ contactInput: groupModalContactId, groupId: parseInt(selected.value) }),
+    body: JSON.stringify({ contactInput: contactId, groupId: parseInt(selected.value) }),
   });
   closeGroupModal();
   loadPeople();
+  // Switch to dialogs tab and open the contact
+  switchTab('dialogs');
+  await loadDialogs();
+  openDialog(contactId);
 }
 
 // ===== UTILS =====

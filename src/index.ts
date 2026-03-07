@@ -2,12 +2,19 @@ import { config } from "./config";
 import { createApp } from "./server/app";
 import { botManager } from "./bot/manager";
 import { startWriteFirstScheduler } from "./bot/writeFirst";
+import { startTonChecker } from "./bot/tonChecker";
 import { prisma } from "./db";
 
-// GramJS periodically throws TIMEOUT in the update loop — safe to ignore
+// GramJS periodically prints and throws TIMEOUT in the update loop — safe to ignore
+const _origConsoleError = console.error.bind(console);
+console.error = (...args: any[]) => {
+  if (args[0] instanceof Error && args[0].message === "TIMEOUT") return;
+  if (typeof args[0] === "string" && args[0].includes("TIMEOUT")) return;
+  _origConsoleError(...args);
+};
 process.on("unhandledRejection", (reason: any) => {
   if (reason?.message === "TIMEOUT") return;
-  console.error("Unhandled rejection:", reason);
+  _origConsoleError("Unhandled rejection:", reason);
 });
 
 async function main() {
@@ -16,6 +23,9 @@ async function main() {
 
   // Start write-first scheduler
   startWriteFirstScheduler();
+
+  // Start TON payment checker
+  startTonChecker();
 
   // Start HTTP server
   const app = createApp();

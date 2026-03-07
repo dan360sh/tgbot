@@ -88,6 +88,21 @@
     .modal-close:hover { background: #f0f0f0; }
     .modal-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
     .modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+    /* Buy tokens modal */
+    .pkg-card { border: 2px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; position: relative; transition: border-color .15s, background .15s; }
+    .pkg-card:hover { border-color: var(--accent); background: #f0f8ff; }
+    .pkg-card.selected { border-color: var(--accent); background: #e8f4ff; }
+    .pkg-top { display: flex; justify-content: space-between; align-items: center; }
+    .pkg-ton { font-size: 18px; font-weight: 700; color: var(--text); }
+    .pkg-tokens { font-size: 14px; color: var(--text-muted); }
+    .pkg-label { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+    .pay-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .pay-label { font-size: 12px; font-weight: 600; color: var(--text-muted); width: 90px; flex-shrink: 0; }
+    .pay-val { font-size: 13px; word-break: break-all; flex: 1; }
+    .pay-val.mono { font-family: monospace; font-size: 13px; }
+    .copy-btn { background: #f0f0f0; border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+    .copy-btn:hover { background: #e0e0e0; }
     .btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 22px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s; }
     .btn-primary:hover { background: var(--accent-dark); }
     .btn-primary:disabled { opacity: .6; cursor: default; }
@@ -192,6 +207,67 @@
 
 </main>
 
+<!-- Buy tokens modal -->
+<div class="modal-overlay hidden" id="buyModal">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-header">
+      <h3>Купить токены</h3>
+      <button class="modal-close" onclick="closeBuyModal()">&#10005;</button>
+    </div>
+    <div class="modal-body" id="buyModalBody">
+      <!-- Step 1: choose package -->
+      <div id="buyStep1">
+        <div id="testnetBadge" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:6px 12px;font-size:12px;color:#856404;margin-bottom:12px;text-align:center">⚠️ Тестовая сеть (TON Testnet) — реальные деньги не списываются</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Выберите пакет токенов для оплаты через TON</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="pkg-card" onclick="selectPkg(this,'1')" data-pkg="1">
+            <div class="pkg-top"><span class="pkg-ton">1 TON</span><span class="pkg-tokens">1 000 токенов</span></div>
+          </div>
+          <div class="pkg-card" onclick="selectPkg(this,'3')" data-pkg="3" style="border-color:var(--accent)">
+            <div class="pkg-label">Популярный</div>
+            <div class="pkg-top"><span class="pkg-ton">3 TON</span><span class="pkg-tokens">3 500 токенов</span></div>
+          </div>
+          <div class="pkg-card" onclick="selectPkg(this,'7')" data-pkg="7">
+            <div class="pkg-top"><span class="pkg-ton">7 TON</span><span class="pkg-tokens">9 000 токенов</span></div>
+          </div>
+        </div>
+        <button class="btn-primary" style="width:100%;margin-top:18px" onclick="createOrder()">Продолжить</button>
+      </div>
+      <!-- Step 2: TON Connect payment -->
+      <div id="buyStep2" style="display:none">
+        <div id="buySuccess" style="display:none;text-align:center;padding:20px 0">
+          <div style="font-size:40px;margin-bottom:12px">✅</div>
+          <div style="color:var(--green);font-weight:700;font-size:18px">Оплачено!</div>
+          <div style="color:var(--text-muted);font-size:13px;margin-top:6px" id="buySuccessTokens"></div>
+        </div>
+        <div id="buyPayFlow">
+          <div style="text-align:center;margin-bottom:20px">
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">К оплате</div>
+            <div style="font-size:28px;font-weight:700" id="payAmountBig">—</div>
+          </div>
+          <!-- TON Connect button container -->
+          <div id="ton-connect-button" style="display:flex;justify-content:center;margin-bottom:14px"></div>
+          <!-- Send button (shown when wallet connected) -->
+          <button id="btnSendTon" class="btn-primary" style="width:100%;display:none" onclick="sendTonTx()">Отправить через кошелёк</button>
+          <div id="buyWaiting" style="display:none;text-align:center;margin-top:14px;font-size:13px;color:var(--text-muted)">
+            Ожидаем подтверждения транзакции…
+          </div>
+          <!-- Fallback: manual -->
+          <details style="margin-top:16px">
+            <summary style="font-size:12px;color:var(--text-muted);cursor:pointer">Оплатить вручную</summary>
+            <div style="margin-top:10px">
+              <div class="pay-row"><span class="pay-label">Кошелёк</span><span class="pay-val" id="payWallet"></span><button class="copy-btn" onclick="copyPay('payWallet')">Копировать</button></div>
+              <div class="pay-row"><span class="pay-label">Сумма</span><span class="pay-val" id="payAmount"></span></div>
+              <div class="pay-row"><span class="pay-label">Комментарий</span><span class="pay-val mono" id="payComment"></span><button class="copy-btn" onclick="copyPay('payComment')">Копировать</button></div>
+              <p style="font-size:11px;color:var(--red);margin-top:6px">Комментарий обязателен — иначе платёж не будет засчитан.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Group modal -->
 <div class="modal-overlay hidden" id="groupModal">
   <div class="modal-box">
@@ -250,11 +326,14 @@ var token = localStorage.getItem('tgbot_token');
 var groups = [], models = [], settings = {};
 var currentGroupId = null;
 var modalPeople = [];
+var appConfig = { testnet: false };
 
 if (!token) window.location.href = '/';
 
 async function init() {
   try {
+    var cfgResp = await fetch('/api/config').then(function(r) { return r.json(); }).catch(function() { return {}; });
+    appConfig = Object.assign(appConfig, cfgResp);
     await Promise.all([loadModels(), loadSettings(), loadGroups()]);
     renderSettings();
     renderGroups();
@@ -540,7 +619,93 @@ async function saveGroup() {
   }
 }
 
-function buyTokens() { showToast('Скоро будет доступно'); }
+// ===== Buy tokens =====
+var selectedPkg = '3';
+var buyPollTimer = null;
+var currentOrderId = null;
+
+function buyTokens() {
+  // reset to step 1
+  document.getElementById('buyStep1').style.display = '';
+  document.getElementById('buyStep2').style.display = 'none';
+  document.getElementById('buySuccess').style.display = 'none';
+  document.getElementById('buyPayFlow').style.display = '';
+  document.getElementById('buyWaiting').style.display = 'none';
+  document.getElementById('btnSendTon').style.display = 'none';
+  document.getElementById('testnetBadge').style.display = appConfig.testnet ? '' : 'none';
+  // pre-select popular pkg
+  selectPkg(document.querySelector('.pkg-card[data-pkg="3"]'), '3');
+  document.getElementById('buyModal').classList.remove('hidden');
+}
+
+function closeBuyModal() {
+  document.getElementById('buyModal').classList.add('hidden');
+  if (buyPollTimer) { clearInterval(buyPollTimer); buyPollTimer = null; }
+  currentOrderId = null;
+  document.getElementById('buyWaiting').style.display = 'none';
+  document.getElementById('buyPayFlow').style.display = '';
+}
+
+function selectPkg(el, pkgId) {
+  document.querySelectorAll('.pkg-card').forEach(function(c) { c.classList.remove('selected'); });
+  if (el) el.classList.add('selected');
+  selectedPkg = pkgId;
+}
+
+async function createOrder() {
+  try {
+    var data = await apiFetch('/api/payments/create', { method: 'POST', body: { packageId: selectedPkg } });
+    document.getElementById('buyStep1').style.display = 'none';
+    document.getElementById('buyStep2').style.display = '';
+
+    var wallet = data.wallet;
+    var amount = data.amountTon;
+    var comment = data.comment;
+    currentOrderId = data.orderId;
+
+    document.getElementById('payAmountBig').textContent = amount + ' TON';
+    document.getElementById('payWallet').textContent = wallet;
+    document.getElementById('payAmount').textContent = amount + ' TON';
+    document.getElementById('payComment').textContent = comment;
+
+    // Show send button if wallet already connected
+    if (tonConnectUI && tonConnectUI.wallet) {
+      document.getElementById('btnSendTon').style.display = '';
+    }
+
+    // Start background polling (in case user pays manually)
+    if (buyPollTimer) clearInterval(buyPollTimer);
+    buyPollTimer = setInterval(pollPayment, 5000);
+  } catch (e) {
+    var msg = 'Ошибка создания платежа';
+    try { var d = JSON.parse(e.message); msg = d.error || msg; } catch(x) {}
+    showToast(msg);
+  }
+}
+
+async function pollPayment() {
+  if (!currentOrderId) return;
+  try {
+    var data = await apiFetch('/api/payments/status/' + currentOrderId);
+    if (data.status === 'paid') {
+      clearInterval(buyPollTimer); buyPollTimer = null;
+      document.getElementById('buyPayFlow').style.display = 'none';
+      document.getElementById('buySuccess').style.display = '';
+      document.getElementById('buySuccessTokens').textContent = '+' + data.tokens + ' токенов зачислено на счёт';
+      // update token count in header
+      var cnt = document.getElementById('tokenCount');
+      if (cnt) {
+        var cur = parseInt(cnt.textContent) || 0;
+        cnt.textContent = cur + data.tokens;
+      }
+    }
+  } catch(e) {}
+}
+
+function copyPay(elemId) {
+  var text = document.getElementById(elemId).textContent;
+  navigator.clipboard.writeText(text).then(function() { showToast('Скопировано'); });
+}
 
 async function logout() {
   await apiFetch('/api/auth/logout', { method: 'POST' }).catch(function() {});
@@ -561,6 +726,67 @@ function esc(str) {
 }
 
 init();
+</script>
+<script src="https://unpkg.com/tonweb/dist/tonweb.js"></script>
+<script src="https://unpkg.com/@tonconnect/ui@2/dist/tonconnect-ui.min.js"></script>
+<script>
+// TON Connect UI init (deferred — scripts load async)
+var tonConnectUI = null;
+
+function initTonConnect() {
+  if (!window.TON_CONNECT_UI) return;
+  tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+    manifestUrl: 'https://newchat.tech/tonconnect-manifest.json',
+    buttonRootId: 'ton-connect-button',
+  });
+  tonConnectUI.onStatusChange(function(wallet) {
+    var btn = document.getElementById('btnSendTon');
+    if (!btn) return;
+    btn.style.display = wallet ? '' : 'none';
+  });
+}
+
+// Wait for scripts to load
+window.addEventListener('load', function() {
+  if (window.TON_CONNECT_UI) initTonConnect();
+});
+
+// Build BOC payload for comment using TonWeb
+async function buildCommentPayload(comment) {
+  if (!window.TonWeb) return undefined;
+  var cell = new TonWeb.boc.Cell();
+  cell.bits.writeUint(0, 32); // text comment opcode
+  var bytes = new TextEncoder().encode(comment);
+  for (var i = 0; i < bytes.length; i++) cell.bits.writeUint8(bytes[i]);
+  var boc = await cell.toBoc(false);
+  return btoa(String.fromCharCode.apply(null, boc));
+}
+
+async function sendTonTx() {
+  if (!tonConnectUI) { showToast('TON Connect не инициализирован'); return; }
+  var btn = document.getElementById('btnSendTon');
+  btn.disabled = true; btn.textContent = 'Открываем кошелёк…';
+  try {
+    var wallet = document.getElementById('payWallet').textContent;
+    var amountTon = parseFloat(document.getElementById('payAmount').textContent);
+    var comment = document.getElementById('payComment').textContent;
+    var nanotons = String(Math.round(amountTon * 1e9));
+    var payload = await buildCommentPayload(comment);
+    var tx = {
+      validUntil: Math.floor(Date.now() / 1000) + 600,
+      messages: [{ address: wallet, amount: nanotons, payload: payload }],
+    };
+    if (appConfig.testnet) tx.network = '-3'; // CHAIN.TESTNET
+    await tonConnectUI.sendTransaction(tx);
+    // Transaction sent — start waiting
+    document.getElementById('buyWaiting').style.display = '';
+    btn.style.display = 'none';
+    if (!buyPollTimer) buyPollTimer = setInterval(pollPayment, 5000);
+  } catch (e) {
+    if (e?.message !== 'User closed modal') showToast('Ошибка: ' + (e?.message || e));
+    btn.disabled = false; btn.textContent = 'Отправить через кошелёк';
+  }
+}
 </script>
 </body>
 </html>

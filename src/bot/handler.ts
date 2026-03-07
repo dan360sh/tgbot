@@ -5,8 +5,8 @@ import { prisma } from "../db";
 import { generateResponse, shouldReplyCheck, summarizeHistory, ContextMessage } from "./ai";
 import { getModel } from "./models";
 
-const MAX_CONTEXT = 50;
-const MIN_CONTEXT = 20;
+const MAX_CONTEXT = 50;   // summarize when context exceeds this
+const MIN_CONTEXT = 20;   // keep last N when summarizing older ones
 const LIVE_MODE_GAP_MS = 5 * 60 * 1000; // 5 minutes
 
 function sleep(ms: number) {

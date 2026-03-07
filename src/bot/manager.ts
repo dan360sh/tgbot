@@ -4,8 +4,11 @@ import { config } from "../config";
 import { prisma } from "../db";
 import { setupHandler } from "./handler";
 
+const SESSION_SAVE_INTERVAL_MS = 2 * 60 * 1000; // save session every 2 minutes if changed
+
 class BotManager {
   private clients = new Map<number, TelegramClient>(); // dbUserId -> client
+  private sessionTimers = new Map<number, NodeJS.Timeout>();
 
   async startAll() {
     const users = await prisma.user.findMany({
@@ -51,11 +54,52 @@ class BotManager {
     setupHandler(client, telegramId, dbUserId);
     this.clients.set(dbUserId, client);
     console.log(`✅ Bot started for user ${dbUserId}`);
+
+    // Periodically persist session string to DB (GramJS updates it on DC migration/key rotation)
+    this.startSessionPersist(dbUserId, client);
+  }
+
+  private startSessionPersist(dbUserId: number, client: TelegramClient) {
+    const existing = this.sessionTimers.get(dbUserId);
+    if (existing) clearInterval(existing);
+
+    let lastSaved = client.session.save() as unknown as string;
+
+    const timer = setInterval(async () => {
+      try {
+        const current = client.session.save() as unknown as string;
+        if (current && current !== lastSaved) {
+          await prisma.user.update({
+            where: { id: dbUserId },
+            data: { sessionString: current },
+          });
+          lastSaved = current;
+          console.log(`[session] Saved updated session for user ${dbUserId}`);
+        }
+      } catch (err: any) {
+        console.warn(`[session] Failed to save session for user ${dbUserId}:`, err?.message);
+      }
+    }, SESSION_SAVE_INTERVAL_MS);
+
+    this.sessionTimers.set(dbUserId, timer);
   }
 
   async stopClient(dbUserId: number) {
+    const timer = this.sessionTimers.get(dbUserId);
+    if (timer) {
+      clearInterval(timer);
+      this.sessionTimers.delete(dbUserId);
+    }
+
     const existing = this.clients.get(dbUserId);
     if (existing) {
+      // Save session before disconnect
+      try {
+        const current = existing.session.save() as unknown as string;
+        if (current) {
+          await prisma.user.update({ where: { id: dbUserId }, data: { sessionString: current } });
+        }
+      } catch {}
       await existing.disconnect().catch(() => {});
       this.clients.delete(dbUserId);
     }

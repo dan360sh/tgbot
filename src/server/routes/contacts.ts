@@ -35,6 +35,8 @@ router.post("/", async (req, res) => {
   let displayName: string | null = null;
 
   const input = String(contactInput).trim();
+  const client = botManager.getClient(user.id);
+
   if (/^\d+$/.test(input)) {
     // Numeric ID
     telegramContactId = BigInt(input);
@@ -42,16 +44,23 @@ router.post("/", async (req, res) => {
   } else {
     // @username — resolve via bot client
     const username = input.startsWith("@") ? input.slice(1) : input;
-    const client = botManager.getClient(user.id);
     if (!client) { res.status(503).json({ error: "Bot not connected. Start the bot first." }); return; }
     try {
       const entity = await client.getEntity(username) as any;
       telegramContactId = BigInt(entity.id.toString());
-      displayName = `@${username}`;
+      displayName = [entity.firstName, entity.lastName].filter(Boolean).join(" ") || `@${username}`;
     } catch {
       res.status(400).json({ error: `User @${username} not found` });
       return;
     }
+  }
+
+  // Try to resolve a proper display name from TG if we only have an ID so far
+  if (client && displayName === input) {
+    try {
+      const entity = await client.getEntity(telegramContactId.toString() as any) as any;
+      displayName = [entity.firstName, entity.lastName].filter(Boolean).join(" ") || entity.username || displayName;
+    } catch { /* keep existing displayName */ }
   }
 
   const contact = await prisma.contactGroup.upsert({
@@ -60,6 +69,14 @@ router.post("/", async (req, res) => {
     update: { groupId: group.id, displayName },
     include: { group: { select: { id: true, name: true } } },
   });
+
+  // Ensure ContactContext stub exists so dialog appears in list immediately
+  await prisma.contactContext.upsert({
+    where: { userId_telegramContactId: { userId: user.id, telegramContactId } },
+    create: { userId: user.id, telegramContactId, displayName: displayName || telegramContactId.toString() },
+    update: {},
+  }).catch(() => {});
+
   res.json({ ...contact, telegramContactId: contact.telegramContactId.toString() });
 });
 

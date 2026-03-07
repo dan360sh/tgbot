@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { botManager } from "./manager";
-import { decideWriteFirst, ContextMessage } from "./ai";
+import { decideWriteFirst, generateResponse, ContextMessage } from "./ai";
 import { getModel } from "./models";
 import { sendMessageToContact } from "./handler";
 
@@ -52,7 +52,13 @@ async function processWriteFirst(
     where: { userId_telegramContactId: { userId: user.id, telegramContactId: contactId } },
   });
 
-  if (!ctx) return; // Only write first to known contacts
+  if (!ctx) {
+    // Create stub context so write-first can proceed
+    ctx = await prisma.contactContext.create({
+      data: { userId: user.id, telegramContactId: contactId, displayName: contactId.toString() },
+    }).catch(() => null);
+    if (!ctx) return;
+  }
 
   const messages: ContextMessage[] = (ctx.messages as unknown as ContextMessage[]) ?? [];
 
@@ -60,12 +66,20 @@ async function processWriteFirst(
   const lastMsgTs = messages.length > 0 ? messages[messages.length - 1].ts : 0;
   const timeSinceLast = Date.now() - lastMsgTs;
 
-  if (timeSinceLast < intervalMs) return; // Not yet time
+  console.log(`[WriteFirst] ${contactId}: lastMsg=${lastMsgTs ? new Date(lastMsgTs).toISOString() : 'never'}, timeSinceLast=${Math.round(timeSinceLast/60000)}min, interval=${Math.round(intervalMs/60000)}min`);
+
+  if (timeSinceLast < intervalMs) {
+    console.log(`[WriteFirst] ${contactId}: skipping — not enough time since last message`);
+    return;
+  }
 
   // Check if last write-first was also within interval
   if (ctx.lastWriteFirst) {
     const timeSinceLastWF = Date.now() - ctx.lastWriteFirst.getTime();
-    if (timeSinceLastWF < intervalMs) return;
+    if (timeSinceLastWF < intervalMs) {
+      console.log(`[WriteFirst] ${contactId}: skipping — wrote first recently (${Math.round(timeSinceLastWF/60000)}min ago)`);
+      return;
+    }
   }
 
   // Ask AI to decide and generate message
@@ -78,13 +92,33 @@ async function processWriteFirst(
     model.id
   );
 
-  if (!decision.write) {
-    console.log(`[WriteFirst] AI decided not to write to ${contactId}`);
-    return;
+  let message = decision.message;
+
+  if (!decision.write || !message) {
+    // Fallback: force-generate if not nighttime (AI may refuse for weak reasons)
+    const hour = new Date().getHours();
+    if (hour >= 22 || hour < 8) {
+      console.log(`[WriteFirst] Skipping ${contactId} — nighttime`);
+      return;
+    }
+    console.log(`[WriteFirst] AI declined, force-generating for ${contactId}`);
+    try {
+      message = await generateResponse(
+        [...messages, { role: "user" as const, content: "[Напиши первым — начни или продолжи разговор естественно]", ts: Date.now() }],
+        group.systemPrompt,
+        ctx.info,
+        ctx.memory,
+        model.apiKey,
+        model.id
+      );
+    } catch (err) {
+      console.error(`[WriteFirst] Force-generate failed for ${contactId}:`, err);
+      return;
+    }
   }
 
-  console.log(`[WriteFirst] Sending to ${contactId}: ${decision.message.slice(0, 60)}...`);
-  await sendMessageToContact(client, user.id, contactId, decision.message);
+  console.log(`[WriteFirst] Sending to ${contactId}: ${message.slice(0, 60)}...`);
+  await sendMessageToContact(client, user.id, contactId, message);
 
   // Update lastWriteFirst timestamp
   await prisma.contactContext.update({
@@ -93,7 +127,7 @@ async function processWriteFirst(
   });
 
   // Deduct tokens
-  const wordCount = decision.message.split(/\s+/).filter(Boolean).length;
+  const wordCount = message.split(/\s+/).filter(Boolean).length;
   const tokensToDeduct = Math.ceil((wordCount / 1000) * model.costPer1000Words);
   if (tokensToDeduct > 0) {
     await prisma.user.update({

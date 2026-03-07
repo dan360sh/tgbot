@@ -30,6 +30,7 @@ model User {
   blacklist       BlacklistEntry[]
   knownUsers      KnownUser[]
   contactContexts ContactContext[]
+  tonPayments     TonPayment[]
 
   defaultGroup   Group? @relation("UserDefaultGroup", fields: [defaultGroupId], references: [id])
   newcomersGroup Group? @relation("UserNewcomersGroup", fields: [newcomersGroupId], references: [id])
@@ -104,4 +105,17 @@ model ContactContext {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, telegramContactId])
+}
+
+model TonPayment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  orderId   String   @unique
+  amountTon Float
+  tokens    Int
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  paidAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
